@@ -58,11 +58,14 @@ var Robot = function(robot) {
   };
 
   function composite(functions){
-    return function(ev) {
+    return function() {
       var context = this;
+      var args = Array.prototype.slice.call(arguments, 0);
+      var response = [];
       functions.forEach(function(fn) {
-        fn.call(context, ev);
+        response.push(fn.apply(context, args));
       });
+      return response;
     };
   }
 
@@ -83,15 +86,13 @@ var Robot = function(robot) {
         this.add(property, object[property]);
       }
     },
-    replace: function(object) {},
-    remove: function(object) {},
+    replace: function(object) {
+      for(var property in object){
+        delete this.events[property];
+        this.add(property, object[property]);
+      }
+    },
   };
-
-  Strategy.append({
-    onIdle: function(ev) {
-      Enviroment.moveToCenter(this);
-    }
-  });
 
   Robot.prototype.onIdle = function(ev) {
     Strategy.get('onIdle').call(ev.robot, ev);
@@ -113,6 +114,13 @@ var Robot = function(robot) {
     Strategy.get('onHitByBullet').call(ev.robot, ev);
   };
 
+  Robot.prototype.getStrategy = function(ev) {
+    return Strategy;
+  };
 
 })();
+
+if (module && module['exports']) {
+  module.exports = Robot;
+}
 
