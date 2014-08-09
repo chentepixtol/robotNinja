@@ -53,6 +53,9 @@ var Robot = function(robot) {
     moveToCenter: function(robot) {
       this.getCenter(robot);
       this.moveToXY(robot, this.center.x, this.center.y);
+      Event.trigger('onCenter', {
+        robot: robot,
+      });
     },
   };
 
@@ -84,6 +87,13 @@ var Robot = function(robot) {
     }
   };
 
+  var RobotExt = {
+    fireToXY: function(robot, x, y) {
+      var angle = Geometry.calculateAngle(robot.position.x, robot.position.y, x, y);
+      robot.log(angle + ',' + robot.angle + ' , ' + robot.cannonRelativeAngle + ', ' + robot.cannonAbsoluteAngle);
+    }
+  };
+
   var Strategy  = {
     events: {},
     get: function(name) {
@@ -104,8 +114,9 @@ var Robot = function(robot) {
       }
     },
     replace: function(object) {
+      delete this.events;
+      this.events = {}
       for(var property in object){
-        delete this.events[property];
         this.add(property, object[property], object);
       }
     },
@@ -118,15 +129,33 @@ var Robot = function(robot) {
   };
 
   var SeekerStrategy = {
-    message: "hola robot",
+    enemy: null,
     onIdle: function(ev) {
       var robot = ev.robot;
-      robot.turn(25);
-      robot.fire();
-      robot.log(this.message);
+      robot.rotateCannon(2);
+    },
+    onScannedRobot: function(ev) {
+      Event.trigger('onSeek', {
+        enemy: ev.scannedRobot,
+      });
     }
   };
-  Strategy.append(SeekerStrategy);
+
+  var AttackStrategy = {
+    enemy: null,
+    setOptions: function(options) {
+      this.enemy = options.enemy;
+    },
+    onIdle: function(ev) {
+      var robot = ev.robot;
+      RobotExt.fireToXY(robot, this.enemy.position.x, this.enemy.position.y);
+    },
+    onScannedRobot: function(ev) {
+      this.setOptions({
+        enemy: ev.scannedRobot,
+      });
+    }
+  };
 
   Robot.prototype.onIdle = function(ev) {
     Strategy.get('onIdle').call(null, ev);
@@ -155,6 +184,15 @@ var Robot = function(robot) {
   Robot.prototype.getEvent = function() {
     return Event;
   };
+
+  Strategy.append(MoveToCenterStrategy);
+  Event.on('onCenter', function() {
+    Strategy.replace(SeekerStrategy);
+  });
+  Event.on('onSeek', function(options) {
+    AttackStrategy.setOptions(options);
+    Strategy.replace(AttackStrategy);
+  });
 
 })();
 
