@@ -4,56 +4,55 @@ var Robot = function(robot) {
 
 (function() {
 
-  var init = false;
   var pi = 3.141592;
 
-  var Enviroment = {
-    init: function(robot) {
-      if (!init) {
-        this.center.x = Math.floor(robot.arenaWidth / 2);
-        this.center.y = Math.floor(robot.arenaHeight / 2);
-        init = true;
-      }
-    },
-    center: {
-      x: 0,
-      y: 0,
-    },
+  var Geometry = {
     toRadians: function(degrees) {
       return degrees * ( pi / 180 );
     },
     toDegrees: function(radians) {
       return radians * ( 180 / pi );
     },
-    moveToXY: function(robot, x, y) {
-      var angle = 180 - this.calculateAngle(robot.position.x, robot.position.y, x, y) - robot.angle;
-      if (robot.position.x < x) {
-        if (robot.position.y < y ) {
-          robot.turn(angle);
-        } else {
-          robot.turnLeft(angle);
-        }
-
-      } else {
-        if (robot.position.y > y) {
-          robot.turnLeft(angle);
-        } else {
-          robot.turn(angle);
-        }
-      }
-
-      robot.log(angle);
-      robot.ahead(this.calculateHypontenus(robot.position.x, robot.position.y, x, y));
-    },
-    moveToCenter: function(robot) {
-      this.init(robot);
-      this.moveToXY(robot, this.center.x, this.center.y);
+    getCuadrant: function(x, y, cx, cy) {
+      return x < cx ? (y < cy ? 1 : 3) : (y < cy ? 2 : 4);
     },
     calculateAngle: function(x, y, cx, cy) {
-      return this.toDegrees(Math.asin(Math.abs(cx - x) / this.calculateHypontenus(x, y, cx, cy)));
+      var angle = Math.abs(this.toDegrees(Math.asin(Math.abs(cx - x) / this.calculateHypontenus(x, y, cx, cy))));
+      var quad = this.getCuadrant(x,y,cx,cy);
+      if (1 == quad) {
+        angle = 180 - angle;
+      } else if (2 == quad) {
+        angle = 180 + angle;
+      } else if (4 == quad) {
+        angle = 360 - angle;
+      }
+      return angle;
     },
     calculateHypontenus: function(x, y, x2, y2) {
       return Math.sqrt(Math.pow(x2 - x, 2) + Math.pow(y2 - y, 2));
+    },
+  };
+
+  var Arena = {
+    center: {
+      x: null,
+      y: null,
+    },
+    getCenter: function(robot) {
+      if (!this.center.x) {
+        this.center.x = Math.floor(robot.arenaWidth / 2);
+        this.center.y = Math.floor(robot.arenaHeight / 2);
+      }
+      return this.center;
+    },
+    moveToXY: function(robot, x, y) {
+      var angle = Geometry.calculateAngle(robot.position.x, robot.position.y, x, y) - robot.angle;
+      robot.turn(angle);
+      robot.ahead(Geometry.calculateHypontenus(robot.position.x, robot.position.y, x, y));
+    },
+    moveToCenter: function(robot) {
+      this.getCenter(robot);
+      this.moveToXY(robot, this.center.x, this.center.y);
     },
   };
 
@@ -92,6 +91,12 @@ var Robot = function(robot) {
         this.add(property, object[property]);
       }
     },
+  };
+
+  var MoveToCenterStrategy = {
+    onIdle: function() {
+      Arena.moveToCenter(this);
+    }
   };
 
   Robot.prototype.onIdle = function(ev) {
