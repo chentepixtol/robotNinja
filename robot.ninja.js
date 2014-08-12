@@ -16,17 +16,22 @@ var Robot = function(robot) {
     getCuadrant: function(x, y, cx, cy) {
       return x < cx ? (y < cy ? 1 : 3) : (y < cy ? 2 : 4);
     },
-    calculateAngle: function(x, y, cx, cy) {
-      var angle = Math.abs(this.toDegrees(Math.asin(Math.abs(cx - x) / this.calculateHypontenus(x, y, cx, cy))));
-      var quad = this.getCuadrant(x,y,cx,cy);
-      if (1 == quad) {
-        angle = 180 - angle;
-      } else if (2 == quad) {
-        angle = 180 + angle;
-      } else if (4 == quad) {
-        angle = 360 - angle;
+    calculateAngle: function(x, y, cx, cy, adjust) {
+      if (adjust == undefined) {
+        adjust = true;
       }
-      return angle;
+      var angle = Math.abs(this.toDegrees(Math.asin(Math.abs(cx - x) / this.calculateHypontenus(x, y, cx, cy))));
+      if (adjust) {
+        var quad = this.getCuadrant(x,y,cx,cy);
+        if (1 == quad) {
+          angle = 180 - angle;
+        } else if (2 == quad) {
+          angle = 180 + angle;
+        } else if (4 == quad) {
+          angle = 360 - angle;
+        }
+      }
+      return Math.floor(angle);
     },
     calculateHypontenus: function(x, y, x2, y2) {
       return Math.sqrt(Math.pow(x2 - x, 2) + Math.pow(y2 - y, 2));
@@ -89,8 +94,39 @@ var Robot = function(robot) {
 
   var RobotExt = {
     fireToXY: function(robot, x, y) {
-      var angle = Geometry.calculateAngle(robot.position.x, robot.position.y, x, y);
-      robot.log(angle + ',' + robot.angle + ' , ' + robot.cannonRelativeAngle + ', ' + robot.cannonAbsoluteAngle);
+      var angle = Geometry.calculateAngle(robot.position.x, robot.position.y, x, y, true);
+      this.turnCannon(robot, 90 + angle - robot.cannonAbsoluteAngle);
+    },
+    turnCannon: function(robot, angle) {
+      if (angle == 360 || angle == 0) {
+        return;
+      }
+      var side = '';
+      if ( angle > 0 ) {
+        if (angle < 180) {
+          side = 'Right';
+        } else if (angle > 180 && angle < 360) {
+          side = 'Left';
+          angle = angle - 180;
+        } else if (angle > 360) {
+          return this.turnCannon(robot, angle - 360);
+        }
+        if (robot['turnGun' + side]) {
+          robot['turnGun' + side](angle);
+        }
+      } else if (angle < 0) {
+        if (angle > -180) {
+          side = 'Right';
+        } else if (angle < -180 && angle > -360) {
+          side = 'Left';
+          angle = angle + 180;
+        } else if (angle < -360) {
+          return this.turnCannon(robot, angle + 360);
+        }
+        if (robot['turnGun' + side]) {
+          robot['turnGun' + side](angle);
+        }
+      }
     }
   };
 
@@ -132,9 +168,10 @@ var Robot = function(robot) {
     enemy: null,
     onIdle: function(ev) {
       var robot = ev.robot;
-      robot.rotateCannon(2);
+      robot.rotateCannon(3);
     },
     onScannedRobot: function(ev) {
+      ev.robot.log("onSeek");
       Event.trigger('onSeek', {
         enemy: ev.scannedRobot,
       });
@@ -148,6 +185,8 @@ var Robot = function(robot) {
     },
     onIdle: function(ev) {
       var robot = ev.robot;
+      robot.turn(4);
+      robot.ahead(6);
       RobotExt.fireToXY(robot, this.enemy.position.x, this.enemy.position.y);
     },
     onScannedRobot: function(ev) {
@@ -185,7 +224,9 @@ var Robot = function(robot) {
     return Event;
   };
 
-  Strategy.append(MoveToCenterStrategy);
+  Strategy.events = {};
+  Event.events = {};
+  Strategy.replace(MoveToCenterStrategy);
   Event.on('onCenter', function() {
     Strategy.replace(SeekerStrategy);
   });
